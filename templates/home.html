@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Weather App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 40px 20px;
+        }
+
+        .page-header {
+            text-align: center;
+            color: #222;
+            margin-bottom: 30px;
+        }
+
+        .search-form-container {
+            max-width: 500px;
+            margin: 0 auto 20px;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .search-form {
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-form-input {
+            flex-grow: 1;
+            min-width: 80px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 10px;
+            font-size: 1rem;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0,0,0,0);
+            border: 0;
+        }
+
+        .search-form-button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 16px;
+            cursor: pointer;
+        }
+
+        .search-form-button:hover {
+            background-color: #0056b3;
+        }
+
+        .error-message {
+            max-width: 500px;
+            margin: 0 auto 20px;
+            padding: 12px;
+            background-color: #fdecea;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            color: #a94442;
+            text-align: center;
+        }
+
+        .results-panel {
+            max-width: 700px;
+            margin: 30px auto 0;
+        }
+
+        .location-name {
+            color: #222;
+            margin-bottom: 15px;
+        }
+
+        .forecast-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #ffffff;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .forecast-table th, .forecast-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        .forecast-table th {
+            background-color: #f7f7f7;
+        }
+
+        .forecast-table tr:last-child td {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="page-header">Weather App</h1>
+
+    <div class="search-form-container">
+        <form class="search-form" action="/" method="post">
+            <label for="city-input" class="sr-only">City</label>
+            <input class="search-form-input" type="search" id="city-input" name="city" placeholder="City">
+
+            <label for="country-input" class="sr-only">Country</label>
+            <input class="search-form-input" type="search" id="country-input" name="country" placeholder="Country (optional)">
+
+            <button class="search-form-button" type="submit">Search</button>
+        </form>
+    </div>
+
+    {% if error %}
+        <p class="error-message">{{ error }}</p>
+    {% endif %}
+
+    {% if weather %}
+    <div class="results-panel">
+        <h2 class="location-name">{{ weather['city'] }}, {{ weather['country'] }}</h2>
+
+        <table class="forecast-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Day</th>
+                    <th>Night</th>
+                    <th>Average</th>
+                    <th>Humidity</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for date, data in weather["days"].items() %}
+                <tr>
+                    <td>{{ date }}</td>
+                    <td>{{ data['day_temperature'] }}&deg;C</td>
+                    <td>{{ data['night_temperature'] }}&deg;C</td>
+                    <td>{{ data['average_temperature'] }}&deg;C</td>
+                    <td>{{ data['average_humidity'] }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</body>
+</html>
