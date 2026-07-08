@@ -2,3 +2,4 @@
 .idea
 .myfuncs
 .env
+__pycache__
