@@ -17,7 +17,7 @@ def home():
             city = request.form.get('city', '').strip()
             country = request.form.get('country', '').strip()
             if city and country: #if both city and country were given location is city and country
-                weather_location = f"{city}{country}"
+                weather_location = f"{city},{country}"
             elif city and not country: # if only city was given location is city
                 weather_location = city
             elif country and not city: # if only country was given location is country
