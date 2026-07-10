@@ -2,6 +2,8 @@ from flask import Flask , render_template , request
 import requests
 import os
 from datetime import datetime
+import dotenv
+dotenv.load_dotenv()
 
 app = Flask(__name__)
 
@@ -43,7 +45,7 @@ def handle_not_found(e):
 def get_weather(weather_location):
     """get the user input send an API request return the weather forcast of this location in json and filter the json for relevant data"""
 
-    api_key = os.environ.get("WEATHER_API_KEY")
+    api_key = os.getenv("API_WEATHER")
 
     if weather_location.strip().lower() in ("usa", "us", "united states"): # specific case
         weather_location = "United States of America"
