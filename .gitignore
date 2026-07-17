@@ -3,3 +3,5 @@
 .myfuncs
 .env
 __pycache__
+.dockerignore
+ssl/
