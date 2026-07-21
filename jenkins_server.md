@@ -123,3 +123,20 @@ cat ~/.ssh/id_ed25519
 ## to ignore the https self cert
 >GIT_SSL_NO_VERIFY=true git push origin main
 
+# Set Up GitLab → Jenkins Webhook
+ 
+## Jenkins
+ 
+1. Start a new job.
+2. Under **Build Triggers**, check **"Build when a change is pushed to GitLab"** — this reveals a webhook URL. Save it.
+3. Check **Push events**.
+4. Click **Advanced → Generate** to create a secret token. Copy it.
+## GitLab
+ 
+1. Go to your repository → **Settings → Webhooks → Add new webhook**.
+2. **URL**: paste the URL from Jenkins. This tells GitLab where to send the trigger.
+3. **Secret Token**: paste the token you generated in Jenkins.
+4. Save.
+## How the token works
+ 
+The generated token is a shared secret. GitLab sends it in the POST request header, and Jenkins checks it to confirm the webhook actually came from GitLab
