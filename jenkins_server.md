@@ -77,7 +77,7 @@ volumes:
 ```
 ## Enter jenkins 
 >http://server-ip:8080
-
+>
 first time it will ask for a password that can be found in container logs
 ```bash
 docker ps # get container ip
@@ -86,3 +86,40 @@ docker logs <container-ip>
 
 create a new user
 set url to elastic url for jenkins 
+
+# in order to give the jenkins the cerfitication
+first I need to move the jenkins ec2 key from local to the gitlab , weatherapp ec2 
+```bash
+scp -i "gitlab.pem/weatherapp.pem" master_jenkins.pem ubuntu@gitlab/weatherapp_server_ip:~
+```
+
+insdie each of the instance i need to move my key and crt files 
+
+```bash
+sudo scp -i "/path/to/master_jenkins.pem" server.key server.crt ubuntu@jenkins-server-ip:~/custom-certs```
+```
+
+## install gitlab plugins in jenkins 
+
+## create a ssh key 
+```bash
+ssh-keygen -t ed25519 -C "jenkins@yourdomain.com"
+```
+
+## inside gitlab do 
+> profile picture -> edit profile -> ssh keys -> add new key
+paste the value of the key -> add key
+> 
+```bash
+cat ~/.ssh/id_ed25519.pub
+```
+## inside jenkins do 
+> settings -> Credentials -> add Credentials -> copy paste the value of the private key -> add key
+> 
+```bash
+cat ~/.ssh/id_ed25519
+```
+
+## to ignore the https self cert
+>GIT_SSL_NO_VERIFY=true git push origin main
+
