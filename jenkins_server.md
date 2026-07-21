@@ -31,7 +31,7 @@ vim docker-compose.yml
 
 ### the docker compose file 
 
-```dockerfile
+```yml
 services:
   # Init container: prepares truststore with custom CA certificates
   cert-init:
@@ -75,5 +75,14 @@ volumes:
   jenkins_home:
   jenkins-cacerts:
 ```
+## Enter jenkins 
+>http://server-ip:8080
 
+first time it will ask for a password that can be found in container logs
+```bash
+docker ps # get container ip
+docker logs <container-ip>
+```
 
+create a new user
+set url to elastic url for jenkins 
