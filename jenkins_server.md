@@ -107,7 +107,7 @@ ssh-keygen -t ed25519 -C "jenkins@yourdomain.com"
 ```
 
 ## inside gitlab do 
-> profile picture -> edit profile -> ssh keys -> add new key
+> Repository -> settings -> Repository -> Deploy keys -> add new key
 paste the value of the key -> add key
 
 ```bash
@@ -119,6 +119,11 @@ cat ~/.ssh/id_ed25519.pub
 ```bash
 cat ~/.ssh/id_ed25519
 ```
+
+## then to help first time fingerprint :
+>Manage Jenkins -> Security -> Git Host Key Verification Configuration
+Set to "Accept first connection"
+
 
 ## to ignore the https self cert
 >GIT_SSL_NO_VERIFY=true git push origin main
