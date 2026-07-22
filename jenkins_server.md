@@ -109,13 +109,13 @@ ssh-keygen -t ed25519 -C "jenkins@yourdomain.com"
 ## inside gitlab do 
 > profile picture -> edit profile -> ssh keys -> add new key
 paste the value of the key -> add key
-> 
+
 ```bash
 cat ~/.ssh/id_ed25519.pub
 ```
 ## inside jenkins do 
 > settings -> Credentials -> add Credentials -> copy paste the value of the private key -> add key
-> 
+
 ```bash
 cat ~/.ssh/id_ed25519
 ```
@@ -140,3 +140,18 @@ cat ~/.ssh/id_ed25519
 ## How the token works
  
 The generated token is a shared secret. GitLab sends it in the POST request header, and Jenkins checks it to confirm the webhook actually came from GitLab
+
+### self ssl ceritfication error 
+
+```bash
+git config http.sslVerify false
+```
+
+## in the job configure scroll down to pipline
+1. **Definition** : Pipeline script from SCM
+2. **SCM**: GIT
+3. **Repository**:  
+     **RepositoryURL**: the gitlab repository url using ssh
+     **Credentials**: the one you made before with the ssh key
+
+
