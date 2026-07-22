@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent CI_pipeline
 
     stages {
         stage('Hello') {
