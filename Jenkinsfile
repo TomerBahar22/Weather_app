@@ -1,5 +1,5 @@
 pipeline {
-    agent CI_pipeline
+    agent { label 'CI_pipeline' }
 
     stages {
         stage('Hello') {
