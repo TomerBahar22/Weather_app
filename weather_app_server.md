@@ -43,16 +43,11 @@ vim .env
 ```
 API_WEATHER=your_api_key
 ```
-## Generate the SSL certificate
+## Generate the SSL certificate for weatherforcast.click domain
 
 ```bash
-mkdir -p ssl
-sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout ssl/selfsigned.key \
-  -out ssl/selfsigned.crt \
-  -subj "/CN=localhost"
+sudo certbot certonly --standalone -d weatherforcast.click
 ```
-(On EC2, use `-subj "/CN=<ec2-public-ip>"` instead.)
 
 ```bash
 docker compose up -d
