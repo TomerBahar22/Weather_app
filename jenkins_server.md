@@ -160,3 +160,11 @@ git config http.sslVerify false
      **Credentials**: the one you made before with the ssh key
 
 
+### add amazon ec2 plugin
+
+### in amazon enter access key add a new one also create a new key pair the key must be RSA for the spot instance
+
+### then in jenkins go to settings -> credintals -> AWS credintals -> put secert and public access key
+
+
+### go to setting cloud -> new cloud -> Amazon EC2 Credentials use the one you made -> EC2 Key Pair's Private Key
