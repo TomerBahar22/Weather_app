@@ -44,15 +44,18 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                sshagent(credentials: ['e90d2e9b-aedf-433e-b600-3de7f6159376']) {
+                withCredentials([sshUserPrivateKey(
+                    credentialsId: 'e90d2e9b-aedf-433e-b600-3de7f6159376',
+                    keyFileVariable: 'SSH_KEY'
+                )]) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=accept-new ubuntu@172.31.33.73 "
+                        ssh -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new ubuntu@172.31.33.73 "
                             cd ~/Weather_app &&
                             docker compose pull web &&
                             docker compose up -d
                         "
                     '''
-                }
+                    }
             }
         }
     }
