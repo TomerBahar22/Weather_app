@@ -3,4 +3,5 @@
 .myfuncs
 .env
 __pycache__
+.gitignore
 ssl/
