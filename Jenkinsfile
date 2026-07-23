@@ -53,5 +53,6 @@ pipeline {
             docker logout || true
         '''
     }
+
 }
 }
