@@ -41,7 +41,22 @@ pipeline {
                 }
             }
         }
+        stage('Deploy') {
+            steps {
+                sshagent(credentials: ['weatherapp-ssh']) {
+                    sh '''
+                        ssh -o StrictHostKeyChecking=accept-new ubuntu@172.31.33.73 "
+                            cd ~/Weather_app &&
+                            docker compose pull web &&
+                            docker compose up -d
+                        "
+                    '''
+                }
+            }
+        }
+
     }
+}
 
     post {
     always {
