@@ -45,7 +45,7 @@ API_WEATHER=your_api_key
 ## Generate the SSL certificate for weatherforcast.click domain
 
 ```bash
-sudo certbot certonly --standalone -d weatherforcast.click
+sudo certbot certonly --standalone -d weather-forecast.click
 ```
 
 ```bash
