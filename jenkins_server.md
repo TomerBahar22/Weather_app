@@ -33,47 +33,19 @@ vim docker-compose.yml
 
 ```yml
 services:
-  # Init container: prepares truststore with custom CA certificates
-  cert-init:
-    image: jenkins/jenkins:lts-jdk21
-    user: root
-    volumes:
-      - ./custom-certs:/certs:ro
-      - jenkins-cacerts:/cacerts-volume
-    command: >
-      bash -c '
-        cp "$${JAVA_HOME}/lib/security/cacerts" /cacerts-volume/cacerts &&
-        for cert in /certs/*.crt /certs/*.pem; do
-          [ -f "$$cert" ] || continue;
-          alias="custom-$$(basename "$${cert%.*}")";
-          "$${JAVA_HOME}/bin/keytool" -importcert -noprompt \
-            -keystore /cacerts-volume/cacerts \
-            -storepass changeit \
-            -alias "$$alias" \
-            -file "$$cert" || true;
-        done &&
-        echo "Custom CA certificates imported successfully"
-      '
-
-  # Main Jenkins container
   jenkins:
     image: jenkins/jenkins:lts-jdk21
-    depends_on:
-      cert-init:
-        condition: service_completed_successfully
+    container_name: jenkins
     restart: on-failure
     ports:
       - "8080:8080"
       - "50000:50000"
     volumes:
       - jenkins_home:/var/jenkins_home
-      - jenkins-cacerts:/cacerts:ro
-    environment:
-      JAVA_OPTS: "-Djavax.net.ssl.trustStore=/cacerts/cacerts -Djavax.net.ssl.trustStorePassword=changeit"
 
 volumes:
   jenkins_home:
-  jenkins-cacerts:
+
 ```
 ## Enter jenkins 
 >http://server-ip:8080
@@ -87,47 +59,108 @@ docker logs <container-ip>
 create a new user
 set url to elastic url for jenkins 
 
-# in order to give the jenkins the cerfitication
-first I need to move the jenkins ec2 key from local to the gitlab , weatherapp ec2 
-```bash
-scp -i "gitlab.pem/weatherapp.pem" master_jenkins.pem ubuntu@gitlab/weatherapp_server_ip:~
+***
+
+### install gitlab plugins in jenkins and amazon ec2 plugin
+1.Manage Jenkins
+2. plugins
+3. available plugins
+4. search and mark ***amazon ec2*** , ***gitlab***
+
+***
+
+## connect jenkins controller to gitlab repository server using token
+
+### to to gitlab
+1. Repository  
+2. settings 
+3. access token 
+4. add new token
+5. pick a name , check write/read repository 
+6. create token   
+
+***you will get a token save it***
+
+### go to jenkins
+1. settings 
+2. Credentials 
+3. add Credentials 
+4. username with paswword 
+5. paste the token , choose a username
+
+***
+
+# IAM policy
+1. search IAM 
+2. create policy 
+3. copy/paste the given json 
+4. name it JenkinsEC2AgentPolicy 
+5. create policy 
+```yml
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "Stmt1312295543082",
+            "Action": [
+                "ec2:DescribeSpotInstanceRequests",
+                "ec2:CancelSpotInstanceRequests",
+                "ec2:GetConsoleOutput",
+                "ec2:RequestSpotInstances",
+                "ec2:RunInstances",
+                "ec2:StartInstances",
+                "ec2:StopInstances",
+                "ec2:TerminateInstances",
+                "ec2:CreateTags",
+                "ec2:DeleteTags",
+                "ec2:DescribeInstances",
+                "ec2:DescribeKeyPairs",
+                "ec2:DescribeRegions",
+                "ec2:DescribeImages",
+                "ec2:DescribeAvailabilityZones",
+                "ec2:DescribeSecurityGroups",
+                "ec2:DescribeSubnets",
+                "iam:ListInstanceProfilesForRole",
+                "ec2:GetPasswordData"
+            ],
+            "Effect": "Allow",
+            "Resource": "*"
+        }
+    ]
+}
 ```
+***
+# IAM user 
+1. search IAM
+2. IAM users 
+3. create user 
+4. choose name 
+5. attach policy directly 
+6. search and choose for policy JenkinsEC2AgentPolicy 
+7. create new IAM user   
 
-insdie each of the instance i need to move my key and crt files 
+##### after the user is created  
+1. press Security credentials 
+2. Create access key   
 
-```bash
-sudo scp -i "/path/to/master_jenkins.pem" server.key server.crt ubuntu@jenkins-server-ip:~/custom-certs```
-```
+### worker key pair
+key need to be ***RSA*** make one 
+1. settings 
+2. Credentials 
+3. add Credentials 
+4. SSH username with private key
+5. paste the private key you made in aws 
+6. choose a username
 
-## install gitlab plugins in jenkins 
+***
 
-## create a ssh key 
-```bash
-ssh-keygen -t ed25519 -C "jenkins@yourdomain.com"
-```
+##### back in jenkins make an aws credentials to user 
+1. settings 
+2. credentials 
+3. AWS credentials 
+4. put secret and public access key
 
-## inside gitlab do 
-> Repository -> settings -> Repository -> Deploy keys -> add new key
-paste the value of the key -> add key
-
-```bash
-cat ~/.ssh/id_ed25519.pub
-```
-## inside jenkins do 
-> settings -> Credentials -> add Credentials -> copy paste the value of the private key -> add key
-
-```bash
-cat ~/.ssh/id_ed25519
-```
-
-## then to help first time fingerprint :
->Manage Jenkins -> Security -> Git Host Key Verification Configuration
-Set to "Accept first connection"
-
-
-## to ignore the https self cert
->GIT_SSL_NO_VERIFY=true git push origin main
-
+***
 # Set Up GitLab → Jenkins Webhook
  
 ## Jenkins
@@ -136,6 +169,7 @@ Set to "Accept first connection"
 2. Under **Build Triggers**, check **"Build when a change is pushed to GitLab"** — this reveals a webhook URL. Save it.
 3. Check **Push events**.
 4. Click **Advanced → Generate** to create a secret token. Copy it.
+
 ## GitLab
  
 1. Go to your repository → **Settings → Webhooks → Add new webhook**.
@@ -146,25 +180,43 @@ Set to "Accept first connection"
  
 The generated token is a shared secret. GitLab sends it in the POST request header, and Jenkins checks it to confirm the webhook actually came from GitLab
 
-### self ssl ceritfication error 
+***
 
-```bash
-git config http.sslVerify false
-```
+## define in Jenkins to fetch Jenkinsfile from gitlab repository
 
-## in the job configure scroll down to pipline
+### in the job configure scroll down to pipline
 1. **Definition** : Pipeline script from SCM
 2. **SCM**: GIT
 3. **Repository**:  
-     **RepositoryURL**: the gitlab repository url using ssh
-     **Credentials**: the one you made before with the ssh key
+     **RepositoryURL**: the gitlab repository url using https
+     **Credentials**: the one you made before the token
 
 
-### add amazon ec2 plugin
 
-### in amazon enter access key add a new one also create a new key pair the key must be RSA for the spot instance
+*** 
+### Jenkins cloud
+1. setting 
+2. cloud 
+3. new cloud 
+4. **name**: worker 
+4. ***Amazon EC2 Credentials***: choose the one you made
+5. **Region**: your ec2 region
+5. ***EC2 Key Pair's Private Key***:the key you made  
 
-### then in jenkins go to settings -> credintals -> AWS credintals -> put secert and public access key
+***press test connection to check if you are connected successful***
 
 
-### go to setting cloud -> new cloud -> Amazon EC2 Credentials use the one you made -> EC2 Key Pair's Private Key
+### AMI Template to launch with agent Node
+1. ***AMI ID***:your AMI
+2. ***instance type***:t3.micro
+3. ***security group name***: 
+4. ***Remote user***:ubuntu
+5. ***AMI Type***: unix
+6. ***Labels***:same as jenkins file 
+7. ***idle termination***:15
+8. press advanced
+9. ***number of executors***:2
+10. ***subnet ID for VPC***:<your ec2 subnet id>
+11. ***Minimum number of instances***:1
+12. ***Instance Cap***:1
+13. ***Host Key Verification Strategy***: accept-new
