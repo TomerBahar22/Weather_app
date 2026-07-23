@@ -22,8 +22,7 @@ ssh -i "ssh_key" ubuntu@<server_ip>
 
 ```bash
 sudo apt update
-sudo apt install -y docker.io docker-compose-v2
-sudo systemctl enable --now docker
+sudo apt install -y docker.io docker-compose-v2 certbot
 sudo usermod -aG docker $USER # then log out and back in
 ```
 
