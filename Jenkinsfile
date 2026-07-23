@@ -45,13 +45,13 @@ pipeline {
 
     post {
     always {
-        script {
-            def instanceId = sh(
-                script: "curl -s -H 'X-aws-ec2-metadata-token: \$(curl -s -X PUT http://169.254.169.254/latest/api/token -H \"X-aws-ec2-metadata-token-ttl-seconds: 21600\")' http://169.254.169.254/latest/meta-data/instance-id",
-                returnStdout: true
-            ).trim()
-            sh "aws ec2 terminate-instances --instance-ids ${instanceId} --region eu-north-1"
-        }
+        sh '''
+            docker stop weather-test || true
+            docker rm weather-test || true
+            docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true
+            docker rmi ${IMAGE_NAME}:latest || true
+            docker logout || true
+        '''
     }
 }
 }
