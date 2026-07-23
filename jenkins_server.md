@@ -219,7 +219,7 @@ The generated token is a shared secret. GitLab sends it in the POST request head
 10. ***subnet ID for VPC***:<your ec2 subnet id>
 11. ***Minimum number of instances***:0
 12. ***Instance Cap***:1
-13. ***Host Key Verification Strategy***: accept-new
+13. ***Host Key Verification Strategy***: check-new-soft
 
 ### AMI how to make 
 create a new instance
