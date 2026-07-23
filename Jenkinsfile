@@ -41,6 +41,7 @@ pipeline {
                 }
             }
         }
+
         stage('Deploy') {
             steps {
                 sshagent(credentials: ['e90d2e9b-aedf-433e-b600-3de7f6159376']) {
@@ -54,20 +55,17 @@ pipeline {
                 }
             }
         }
-
     }
-}
 
     post {
-    always {
-        sh '''
-            docker stop weather-test || true
-            docker rm weather-test || true
-            docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true
-            docker rmi ${IMAGE_NAME}:latest || true
-            docker logout || true
-        '''
+        always {
+            sh '''
+                docker stop weather-test || true
+                docker rm weather-test || true
+                docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true
+                docker rmi ${IMAGE_NAME}:latest || true
+                docker logout || true
+            '''
+        }
     }
-
-}
 }
