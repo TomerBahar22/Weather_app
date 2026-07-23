@@ -2,7 +2,7 @@ pipeline {
     agent { label 'worker' }
 
     environment {
-        IMAGE_NAME = "yourdockerhubuser/weather-app"
+        IMAGE_NAME = "tomerbahar2/weather_app-web"
         IMAGE_TAG  = "${BUILD_NUMBER}"
     }
 
