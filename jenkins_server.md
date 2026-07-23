@@ -248,3 +248,16 @@ sudo rm -f /etc/ssh/ssh_host_*
 9. back in **aws** press the image 
 10. right click image and template 
 11. create image
+
+***
+
+
+## make ssh key for weather-forcast app to agent
+1. jenkins settings
+2. credintals
+3. new
+4. username with ssh key
+5. **private ip**:weather-forecast app private key
+```bash
+cat "weatcher-forecast.pem"
+```
