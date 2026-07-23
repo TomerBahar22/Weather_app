@@ -1,390 +1,345 @@
-# Weather App
-
-This is a Flask-based web application that lets a user look up current weather information for a given location.
-
-**How it works:**
-- The user visits the site and requests weather data (e.g., by entering a city/country name).
-- The Flask backend (`app.py`) receives the request and calls an external weather API (WeatherAPI) using an API key.
-- The API key is read from the environment at runtime (`os.getenv("API_WEATHER")`) — never hardcoded in the source, and never baked into a Docker image.
-- The app parses the API's response and renders the result using an HTML template (`templates/home.html`).
-- If a request fails or an invalid location is given, a not-found page is shown instead (`templates/not_found.html`).
-
-
-**Two deployment paths are documented:**
-- **[Docker Compose](#docker-deployment)** — one command, runs anywhere. Works locally or on EC2.
-- **[Manual EC2 setup](#manual-ec2-deployment)** — the same stack configured by hand with systemd and system-level nginx. Kept as documentation of what Compose automates.
+# Infrastructure Setup — Jenkins Server & Weather App Server
 
 ---
 
-# Docker Deployment
+# Part 1: Jenkins server inside a container in EC2
 
-## Prerequisites
+### ami
+ubuntu 24.04
+### instance
+t3.medium
+### security group
+ssh my ip
+http my gitlab my webapp
+### storage
+50gb
 
-**Local (Ubuntu/Debian):**
+***
+
+# connect to my ec2 using ssh
+```bash
+chmod 400 ssh_key.pem
+ssh -i "ssh_key" ubuntu@<server_ip>
+```
+
+***
+
 ```bash
 sudo apt update
-sudo apt install docker.io docker-compose-plugin -y
+sudo apt install -y docker.io docker-compose-v2
+sudo systemctl enable --now docker
 sudo usermod -aG docker $USER
 ```
-Log out and back in for the group change to take effect.
 
-**On an EC2 instance (Amazon Linux 2023)** — see [Running on EC2](#running-on-ec2) below.
+# inside the ec2 make a docker compose
+```bash
+touch docker-compose.yml
+vim docker-compose.yml
+```
 
-You'll also need a WeatherAPI key from [weatherapi.com](https://www.weatherapi.com/).
+***
 
-## 1. Clone and configure
+### the docker compose file
 
+```yml
+services:
+  jenkins:
+    image: jenkins/jenkins:lts-jdk21
+    container_name: jenkins
+    restart: on-failure
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+
+volumes:
+  jenkins_home:
+```
+
+## Enter jenkins
+> http://server-ip:8080
+
+first time it will ask for a password that can be found in container logs
+```bash
+docker ps            # get the container name
+docker logs jenkins  # the initial admin password appears in the log
+```
+
+create a new user
+set url to elastic url for jenkins
+
+***
+
+### install gitlab plugin and amazon ec2 plugin in jenkins
+1. Manage Jenkins
+2. Plugins
+3. Available plugins
+4. search and mark ***amazon ec2***, ***gitlab***
+
+***
+
+## connect jenkins controller to gitlab repository server using token
+
+### go to gitlab
+1. Repository
+2. Settings
+3. Access tokens
+4. Add new token
+5. pick a name, check read/write repository
+6. create token
+
+***you will get a token — save it***
+
+### go to jenkins
+1. Settings
+2. Credentials
+3. Add Credentials
+4. Username with password
+5. paste the token as the password, choose a username
+
+***
+
+# IAM policy
+1. search IAM
+2. create policy
+3. copy/paste the given json
+4. name it JenkinsEC2AgentPolicy
+5. create policy
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "Stmt1312295543082",
+            "Action": [
+                "ec2:DescribeSpotInstanceRequests",
+                "ec2:CancelSpotInstanceRequests",
+                "ec2:GetConsoleOutput",
+                "ec2:RequestSpotInstances",
+                "ec2:RunInstances",
+                "ec2:StartInstances",
+                "ec2:StopInstances",
+                "ec2:TerminateInstances",
+                "ec2:CreateTags",
+                "ec2:DeleteTags",
+                "ec2:DescribeInstances",
+                "ec2:DescribeKeyPairs",
+                "ec2:DescribeRegions",
+                "ec2:DescribeImages",
+                "ec2:DescribeAvailabilityZones",
+                "ec2:DescribeSecurityGroups",
+                "ec2:DescribeSubnets",
+                "iam:ListInstanceProfilesForRole",
+                "ec2:GetPasswordData"
+            ],
+            "Effect": "Allow",
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+***
+
+# IAM user
+1. search IAM
+2. IAM users
+3. create user
+4. choose name
+5. attach policy directly
+6. search and choose the policy JenkinsEC2AgentPolicy
+7. create new IAM user
+
+##### after the user is created
+1. press Security credentials
+2. Create access key
+
+### worker key pair
+key needs to be ***RSA*** — make one
+1. Settings
+2. Credentials
+3. Add Credentials
+4. SSH Username with private key
+5. paste the private key you made in aws
+6. choose a username
+
+***
+
+##### back in jenkins make an aws credential for the IAM user
+1. Settings
+2. Credentials
+3. AWS Credentials
+4. put the access key and secret key
+
+***
+
+# Set Up GitLab → Jenkins Webhook
+
+## Jenkins
+
+1. Start a new job.
+2. Under **Build Triggers**, check **"Build when a change is pushed to GitLab"** — this reveals a webhook URL. Save it.
+3. Check **Push events**.
+4. Click **Advanced → Generate** to create a secret token. Copy it.
+
+> **Gotcha — 403 on webhook test:** if GitLab's webhook test returns 403 with `X-Required-Permission: hudson.model.Hudson.Read`, go to **Manage Jenkins → System → GitLab section** and check **"Enable authentication for '/project' end-point"**.
+
+## GitLab
+
+1. Go to your repository → **Settings → Webhooks → Add new webhook**.
+2. **URL**: paste the URL from Jenkins. Use the Jenkins **private IP** — both servers are in the same VPC, so the traffic should stay internal.
+3. **Secret Token**: paste the token you generated in Jenkins.
+4. Save.
+
+## How the token works
+
+The generated token is a shared secret. GitLab sends it in the POST request header, and Jenkins checks it to confirm the webhook actually came from GitLab.
+
+***
+
+## define in Jenkins to fetch Jenkinsfile from gitlab repository
+
+### in the job configure scroll down to pipeline
+1. **Definition**: Pipeline script from SCM
+2. **SCM**: Git
+3. **Repository**:
+   - **Repository URL**: the gitlab repository url
+   - **Credentials**: the token credential you made before
+
+> **Gotcha — public vs private IP:** when Jenkins and GitLab are in the same VPC, use **private IPs** between them. Traffic to a public IP leaves through the Internet Gateway and comes back as external — so security group rules that reference another security group (or the VPC CIDR) won't match it.
+
+***
+
+### Jenkins cloud
+1. Settings
+2. Clouds
+3. New cloud
+4. **name**: worker
+5. ***Amazon EC2 Credentials***: choose the one you made
+6. **Region**: your ec2 region
+7. ***EC2 Key Pair's Private Key***: the RSA key you made
+
+***press test connection to check if you are connected successfully***
+
+### AMI Template to launch with agent Node
+1. ***AMI ID***: your AMI
+2. ***Instance type***: t3.micro
+3. ***Security group name***: your agent security group
+4. ***Remote user***: ubuntu
+5. ***AMI Type***: unix
+6. ***Labels***: same as in the Jenkinsfile (`worker`)
+7. ***Idle termination time***: 10
+8. press advanced
+9. ***Number of executors***: 1
+10. ***Subnet ID for VPC***: <your ec2 subnet id>
+11. ***Minimum number of instances***: 0
+12. ***Instance Cap***: 1
+13. ***Host Key Verification Strategy***: check-new-soft
+
+### AMI how to make
+create a new instance
+1. **AMI**: ubuntu 24.04
+2. **instance**: t3.micro
+3. **keypair**: the RSA key we made for the agent
+4. **security group**: <your agent security group>
+5. launch instance
+6. login into the instance
+```bash
+ssh -i "<keypair>" ubuntu@<ec2_ip>
+```
+7. inside the instance
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y openjdk-21-jre-headless
+sudo apt install -y docker.io docker-compose-v2
+sudo usermod -aG docker $USER
+sudo apt install -y python3-pip
+sudo pip3 install pylint --break-under-system-packages
+history -c
+sudo cloud-init clean
+sudo rm -f /etc/ssh/ssh_host_*
+```
+
+> **Why `sudo pip3` for pylint:** installing with sudo puts pylint in `/usr/local/bin`, which is on the PATH for Jenkins' non-interactive shell. A `--user` install goes to `~/.local/bin` and the agent gets `pylint: not found`.
+
+8. back in **aws** press the instance
+9. Actions → Image and templates
+10. create image
+
+> **Important:** create the AMI immediately after the last commands — **don't reboot first**. Rebooting runs cloud-init's "first boot" on this instance, baking regenerated host keys into the image.
+
+***
+
+## SSH key credential for deploying to the weather app server
+1. Jenkins Settings
+2. Credentials
+3. New
+4. **SSH Username with private key**
+5. **Private key**: the weather-forecast app server's private key
+```bash
+cat "weather-forecast.pem"
+```
+
+---
+
+# Part 2: Weather app server inside a container in EC2
+
+### ami
+ubuntu 24.04
+### instance
+t3.micro
+### security group
+ssh my ip
+http/https open (80 + 443 — certbot needs 80, the site serves on 443)
+### storage
+30gb
+
+***
+
+# connect to my ec2 using ssh
+```bash
+chmod 400 ssh_key.pem
+ssh -i "ssh_key" ubuntu@<server_ip>
+```
+
+***
+
+```bash
+sudo apt update
+sudo apt install -y docker.io docker-compose-v2 certbot
+sudo usermod -aG docker $USER # then log out and back in
+```
+
+## clone the repository
 ```bash
 git clone https://github.com/TomerBahar22/Weather_app.git
 cd Weather_app
 ```
+
+***
 
 Create `.env` with your API key. This file is in both `.gitignore` and `.dockerignore` — it never reaches the repo or an image layer:
 ```bash
-cp .env.example .env
+touch .env
 vim .env
 ```
 ```
 API_WEATHER=your_api_key
 ```
 
-## 2. Generate the SSL certificate
-
-`ssl/` is gitignored — generate certs locally:
-```bash
-mkdir -p ssl
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout ssl/selfsigned.key \
-  -out ssl/selfsigned.crt \
-  -subj "/CN=localhost"
-```
-(On EC2, use `-subj "/CN=<ec2-public-ip>"` instead.)
-
-## 3. Run
-
-**Option A — build from source (default):**
-```bash
-docker compose up --build
-```
-
-**Option B — pull a prebuilt image:**
-
-Build and push once:
-```bash
-docker push tomerbahar2/weather_app-web
-```
-
-Then in `docker-compose.yml`, replace `build: .` with:
-```yaml
-web:
-  image: tomerbahar2/weather_app-web
-```
-```bash
-docker compose up
-```
-
-Option A keeps the repo self-contained. Option B skips the build step on the target machine and is the realistic production pattern — CI builds and pushes; servers only pull.
-
-Reachable at `https://localhost:9090` (browser will warn about the self-signed cert — expected).
-
-## Project structure
-
-```
-Weather_app/
-├── app.py                 # Flask application
-├── templates/             # HTML templates
-├── requirements.txt
-├── Dockerfile             # builds the web (gunicorn) image
-├── docker-compose.yml     # orchestrates web + nginx
-├── nginx.conf             # main nginx config — rate-limit zones live here
-├── myapp.conf             # server block: SSL, proxy, limits
-├── .env.example
-├── .dockerignore
-├── .env                   # gitignored
-└── ssl/                   # gitignored
-```
-
-## How it's wired
-
-| | |
-|---|---|
-| `web` container | Gunicorn on `0.0.0.0:8000`, not published to the host |
-| `nginx` container | Listens on 443 (SSL), published as host `9090` |
-| Traffic flow | `localhost:9090` → nginx:443 → `web:8000` |
-| Service discovery | `proxy_pass http://web:8000` — resolved by Docker's embedded DNS |
-
-**Why `0.0.0.0:8000`, not `127.0.0.1:8000`:** in the manual setup, nginx and gunicorn share a machine, so loopback works. In Docker they're separate network namespaces — `127.0.0.1` inside the web container is unreachable from nginx. Gunicorn must bind all interfaces; nginx must target the service name.
-
-**Why `web` uses `expose`, not `ports`:** publishing 8000 to the host would let clients hit gunicorn directly and bypass nginx — skipping SSL and rate limiting entirely. `expose` keeps it reachable only from other containers on the Compose network.
-
-**Why `nginx.conf` is a full copy, not a snippet:** `limit_req_zone` and `limit_conn_zone` must live in the `http {}` block. Since `conf.d/*.conf` files are included *inside* `http {}`, there's no way to add them from `myapp.conf` — the whole file has to be owned and mounted.
-
-## Common tasks
+## Generate the SSL certificate for the weather-forecast.click domain
 
 ```bash
-docker compose up -d --build          # rebuild and run detached
-docker compose logs -f web            # follow gunicorn logs
-docker compose logs -f nginx          # follow access/error logs
-docker compose restart nginx          # reload after editing myapp.conf — bind-mounted, no rebuild needed
-docker compose down                   # stop and remove
-docker compose exec nginx nginx -T    # print merged nginx config — verifies mounts loaded
-docker compose exec nginx curl http://web:8000   # test container-to-container reachability
+sudo certbot certonly --standalone -d weather-forecast.click
 ```
 
-## Troubleshooting
+> **Gotcha — certbot 403 on a fresh GoDaddy domain:** GoDaddy may auto-attach a Website Builder page or a Forwarding rule to a new domain. Delete the extra `@` A record and any Forwarding rule, then verify `dig weather-forecast.click +short` returns **only** your EC2 IP before retrying certbot.
 
-**`SSL routines::wrong version number`** — nginx is serving plain HTTP on the port you hit, meaning your `myapp.conf` didn't load. Check `docker compose logs nginx` for an `[emerg]` line and `docker compose exec nginx nginx -T` to see what config actually merged.
-
-**`Temporary failure in name resolution`** — the container can't resolve external domains. Docker's embedded resolver (`127.0.0.11`) forwards external queries upstream to whatever the host's resolver config says; on Ubuntu with systemd-resolved (or under Docker Desktop's VM), that forwarding target can be unreachable from inside a container namespace. Override it:
-
-```yaml
-services:
-  web:
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-```
-
-Or daemon-wide in `/etc/docker/daemon.json`:
-```json
-{ "dns": ["8.8.8.8", "1.1.1.1"] }
-```
-then `sudo systemctl restart docker`.
-
-This only affects *external* lookups — service names like `web` are answered by `127.0.0.11` directly and were never affected.
-
-**`port is already allocated`** — something else holds the host port. Find it with `sudo lsof -i :9090`. A leftover host-level nginx from the manual setup is a likely culprit:
-```bash
-sudo systemctl stop nginx
-sudo systemctl disable nginx
-```
-
-**Logs filling the disk** — the default `json-file` driver has no size cap. Add rotation in `/etc/docker/daemon.json`:
-```json
-{
-  "log-driver": "json-file",
-  "log-opts": { "max-size": "10m", "max-file": "3" }
-}
-```
-
-## Running on EC2
-
-The Docker setup runs unchanged on EC2 — only the Docker install differs.
-
-**1. Connect** (see [manual section](#1-connect-to-the-ec2-instance) for key permissions and Security Group rules — same requirements: TCP 22 for SSH, TCP 9090 for the app).
-
-**2. Install Docker (Amazon Linux 2023):**
-```bash
-sudo dnf update -y
-sudo dnf install -y docker git
-sudo systemctl enable --now docker
-sudo usermod -aG docker ec2-user
-newgrp docker
-```
-
-**3. Install the Compose plugin:**
-```bash
-sudo dnf install -y docker-compose-plugin
-```
-If that package isn't available on your AMI, install the binary directly:
-```bash
-sudo mkdir -p /usr/local/lib/docker/cli-plugins
-sudo curl -sL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" \
-  -o /usr/local/lib/docker/cli-plugins/docker-compose
-sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-```
-
-Verify:
-```bash
-docker version
-docker compose version
-```
-
-**4. Deploy** — same as local, with the cert CN set to the instance's public IP:
-```bash
-git clone https://github.com/TomerBahar22/Weather_app.git
-cd Weather_app
-cp .env.example .env && vim .env
-
-mkdir -p ssl
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout ssl/selfsigned.key \
-  -out ssl/selfsigned.crt \
-  -subj "/CN=<ec2-public-ip>"
-
-docker compose up -d --build
-```
-
-Reachable at `https://<ec2-public-ip>:9090`.
-
-**Notes:**
-- **Don't install nginx or python on the host** — both run in containers. A host-level nginx will fight for port 9090.
-- **The Security Group is unchanged** from the manual setup — Docker's port publishing inserts iptables DNAT rules on the instance, but AWS's Security Group is still the outer gate.
-- **`newgrp docker`** applies the group change in the current shell; without it you'd need to log out and back in before running docker without `sudo`.
-
----
-
-# Manual EC2 Deployment
-
-> Kept as reference. Same architecture as the Docker setup, configured by hand — useful for understanding what Compose automates.
-
-## 1. Connect to the EC2 instance
-
-Restrict the downloaded key pair's permissions (required — SSH refuses to use a key file that's readable by others):
-```bash
-chmod 400 your-key.pem
-```
-
-SSH into the instance using the key pair (username depends on the AMI: `ubuntu` for Ubuntu AMIs, `ec2-user` for Amazon Linux):
-```bash
-ssh -i your-key.pem ec2-user@<ec2-public-ip>
-```
-
-the EC2 **Security Group** must allow inbound traffic on:
-- TCP 22 (SSH) — source: your IP
-- TCP 9090 (HTTPS/app) — source: your IP, or `0.0.0.0/0` for public access
-
----
-
-## 2. Install dependencies
-
-Update package lists and install nginx, Python venv tools, pip, and git:
-```bash
-sudo yum update
-sudo yum install nginx python3-venv python3-pip git -y
-```
-
-Clone the app repo and move into it:
-```bash
-git clone https://github.com/TomerBahar22/Weather_app.git
-cd Weather_app
-```
-
-Create and activate a virtual environment, then install dependencies. (`gunicorn` should be listed in `requirements.txt` — don't also install it via the system package manager, since that creates a separate system-wide copy outside the venv.)
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-Create the `.env` file with your WeatherAPI key
-```bash
-vim .env
-```
-```
-API_WEATHER=your_api_key
-```
-
-Export it into the environment before running gunicorn (or set it in the systemd unit — see step 8):
-```bash
-export $(cat .env | xargs)
-```
-
----
-
-## 3. SSL certificate
-
-Generate a self-signed SSL certificate
-```bash
-sudo mkdir -p /etc/nginx/ssl
-sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout /etc/nginx/ssl/selfsigned.key \
-  -out /etc/nginx/ssl/selfsigned.crt \
-  -subj "/CN=<ec2-public-ip>"
-```
-
----
-
-## 4. Nginx site config
-
-Create the config file:
-```bash
-sudo vim /etc/nginx/conf.d/myapp.conf
-```
-
-Paste this inside it:
-```nginx
-server {
-    listen 9090 ssl;
-    server_name <ec2-public-ip>;
-
-    ssl_certificate /etc/nginx/ssl/selfsigned.crt;
-    ssl_certificate_key /etc/nginx/ssl/selfsigned.key;
-
-    location / {
-        limit_req zone=req_limit;
-        limit_conn conn_limit 5;
-
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
----
-
-## 5. Rate limiting zones
-
-Define the rate-limit/connection-limit zones — must live in the `http {}` block of the main config, not the site config:
-```bash
-sudo vim /etc/nginx/nginx.conf
-```
-
-Add inside `http {}`:
-```nginx
-limit_req_zone $binary_remote_addr zone=req_limit:10m rate=1r/s;
-limit_conn_zone $binary_remote_addr zone=conn_limit:10m;
-```
-
----
-
-## 6. Apply the Nginx config
-
-Test the config for syntax errors before applying:
-```bash
-sudo nginx -t
-```
-
-Restart nginx to apply the new config:
-```bash
-sudo systemctl restart nginx
-```
-
----
-
-## 7. Run the app
-
-Run Gunicorn, binding it to localhost:8000 (nginx proxies to this):
-```bash
-gunicorn --bind 127.0.0.1:8000 app:app
-```
-
-For persistence beyond this SSH session, run Gunicorn as a **systemd service** instead (see below) so it survives logout/reboot.
-
----
-
-## 8. (Optional) systemd service for Gunicorn
+## Run
 
 ```bash
-sudo vim /etc/systemd/system/myapp.service
+docker compose up -d
 ```
-```ini
-[Unit]
-Description=Gunicorn instance for Weather App
-After=network.target
 
-[Service]
-User=ubuntu
-WorkingDirectory=/home/ubuntu/Weather_app
-EnvironmentFile=/home/ubuntu/Weather_app/.env
-ExecStart=/home/ubuntu/Weather_app/.venv/bin/gunicorn --workers 3 --bind 127.0.0.1:8000 app:app
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now myapp
-```
+> The compose file pulls the CI-built image (`image: tomerbahar2/weather_app-web:latest`) instead of building from source — CI builds and pushes, the server only pulls.
