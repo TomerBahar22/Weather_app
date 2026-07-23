@@ -43,7 +43,7 @@ pipeline {
         }
         stage('Deploy') {
             steps {
-                sshagent(credentials: ['weatherapp-ssh']) {
+                sshagent(credentials: ['e90d2e9b-aedf-433e-b600-3de7f6159376']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=accept-new ubuntu@172.31.33.73 "
                             cd ~/Weather_app &&
