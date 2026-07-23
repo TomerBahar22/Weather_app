@@ -213,11 +213,11 @@ The generated token is a shared secret. GitLab sends it in the POST request head
 4. ***Remote user***:ubuntu
 5. ***AMI Type***: unix
 6. ***Labels***:same as jenkins file 
-7. ***idle termination***:15
+7. ***idle termination***:10
 8. press advanced
-9. ***number of executors***:2
+9. ***number of executors***:1
 10. ***subnet ID for VPC***:<your ec2 subnet id>
-11. ***Minimum number of instances***:1
+11. ***Minimum number of instances***:0
 12. ***Instance Cap***:1
 13. ***Host Key Verification Strategy***: accept-new
 
@@ -235,10 +235,15 @@ ssh -i "<keypair> ubuntu@<ec2_ip>"
 ```
 8. inside the instance
 ```bash
-sudo apt update
-sudo apt install -y docker.io docker-compose-v2 jdk21 python3 python3-pip pylint
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y openjdk-21-jre-headless
+sudo apt install -y docker.io docker-compose-v2
 sudo usermod -aG docker $USER
-history -c  
+sudo apt install -y python3-pip
+sudo pip3 install pylint --break-system-packages
+history -c
+sudo cloud-init clean
+sudo rm -f /etc/ssh/ssh_host_*
 ```
 9. back in **aws** press the image 
 10. right click image and template 
