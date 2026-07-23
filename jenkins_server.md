@@ -220,3 +220,26 @@ The generated token is a shared secret. GitLab sends it in the POST request head
 11. ***Minimum number of instances***:1
 12. ***Instance Cap***:1
 13. ***Host Key Verification Strategy***: accept-new
+
+### AMI how to make 
+create a new instance
+1. **AMI**:ubuntu 24.04
+2. **instance**:t3.micro
+3. **keypair**:the RSA key we made for agent
+4. **security group**:<your agent security group>
+5. launch instance
+6. login into the instance
+7. in your terminal
+```bash
+ssh -i "<keypair> ubuntu@<ec2_ip>"
+```
+8. inside the instance
+```bash
+sudo apt update
+sudo apt install -y docker.io docker-compose-v2 jdk21 python3 python3-pip pylint
+sudo usermod -aG docker $USER
+history -c  
+```
+9. back in **aws** press the image 
+10. right click image and template 
+11. create image
